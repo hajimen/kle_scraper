@@ -1,4 +1,5 @@
 import os
+import pathlib
 import typing as ty
 import tempfile
 import atexit
@@ -29,16 +30,29 @@ def exit_scraping(browser):
     cef.QuitMessageLoop()
 
 
-class BrowserContext:
-    def __init__(self, kle_json_filename: str, image_output_dir: str):
+class BrowserContext2:
+    def __init__(self, kle_json_file: pathlib.Path, image_output_dir: pathlib.Path):
         self.kle_keyboard: kle_serial.Keyboard = None
-        self.kle_json_filename = kle_json_filename
+        self.kle_json_file = kle_json_file
         self.image_output_dir = image_output_dir
         self.rects: ty.Any = None
         self.transforms: ty.Set[str] = set()
         self.capturing_screenshot = False
         self.current_transform: str = ''
         self.shot_transforms: ty.Set[str] = set()
+
+
+from dataclasses import dataclass, field
+@dataclass
+class BrowserContext:
+    kle_json_file: pathlib.Path
+    image_output_dir: pathlib.Path
+    kle_keyboard: kle_serial.Keyboard = None
+    rects: ty.Any = None
+    transforms: ty.Set[str] = field(default_factory=set)
+    capturing_screenshot = False
+    current_transform: str = ''
+    shot_transforms: ty.Set[str] = field(default_factory=set)
 
 
 def handle_exception(func):
@@ -130,7 +144,7 @@ def wait_screenshot(bc: BrowserContext, browser):
         exec_retrieve_rects(bc, browser)
         return
 
-    with open(bc.kle_json_filename, 'r', encoding='utf-8') as f:
+    with open(bc.kle_json_file, 'r', encoding='utf-8') as f:
         json = f.read()
     bc.kle_keyboard = kle_serial.parse(json)
 
@@ -156,7 +170,7 @@ class LoadHandler(object):
                 bindings.SetFunction("yieldTransforms", yield_transforms)
                 bindings.SetFunction("yieldRects", yield_rects)
                 browser.SetJavascriptBindings(bindings)
-                with open(self.browser_context.kle_json_filename, 'r', encoding='utf-8') as f:
+                with open(self.browser_context.kle_json_file, 'r', encoding='utf-8') as f:
                     json = f.read()
                 browser.ExecuteJavascript(r'''(function(){
                     window.deserializeAndRenderAndApply(''' + json + r''');
@@ -222,7 +236,9 @@ class RenderHandler(object):
             cef.PostTask(cef.TID_UI, exit_scraping, browser)
 
 
-def scrape(kle_json_filename: str, image_output_dir: str) -> kle_serial.Keyboard:
+def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union[os.PathLike, str]) -> kle_serial.Keyboard:
+    kle_json_file = pathlib.Path(kle_json_file)
+    image_output_dir = pathlib.Path(image_output_dir)
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'web'), **kwargs)
@@ -249,7 +265,7 @@ def scrape(kle_json_filename: str, image_output_dir: str) -> kle_serial.Keyboard
         browser = cef.CreateBrowserSync(window_info=window_info,
                                         settings=browser_settings,
                                         url=url)
-        bc = BrowserContext(kle_json_filename, image_output_dir)
+        bc = BrowserContext(kle_json_file, image_output_dir)
         browser.SetClientHandler(LoadHandler(bc))
         browser.SetClientHandler(RenderHandler(bc))
         browser.SendFocusEvent(True)
