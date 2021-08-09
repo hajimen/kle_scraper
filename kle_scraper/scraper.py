@@ -11,6 +11,7 @@ import pykle_serial as kle_serial
 from http.server import SimpleHTTPRequestHandler
 from socketserver import TCPServer
 import threading
+from dataclasses import dataclass, field
 
 
 # Constant
@@ -30,19 +31,6 @@ def exit_scraping(browser):
     cef.QuitMessageLoop()
 
 
-class BrowserContext2:
-    def __init__(self, kle_json_file: pathlib.Path, image_output_dir: pathlib.Path):
-        self.kle_keyboard: kle_serial.Keyboard = None
-        self.kle_json_file = kle_json_file
-        self.image_output_dir = image_output_dir
-        self.rects: ty.Any = None
-        self.transforms: ty.Set[str] = set()
-        self.capturing_screenshot = False
-        self.current_transform: str = ''
-        self.shot_transforms: ty.Set[str] = set()
-
-
-from dataclasses import dataclass, field
 @dataclass
 class BrowserContext:
     kle_json_file: pathlib.Path
@@ -53,18 +41,35 @@ class BrowserContext:
     capturing_screenshot = False
     current_transform: str = ''
     shot_transforms: ty.Set[str] = field(default_factory=set)
+    failed: ty.Optional[Exception] = None
 
 
-def handle_exception(func):
-    def wrapped(bc: BrowserContext, browser):
+def handle_exception(func: ty.Callable):
+    def wrapped(*args, **kwargs):
         try:
-            return func(bc, browser)
-        except:
-            import traceback
-            print("[kle_scraper] Uncaught exception raised.")
-            traceback.print_exc()
+            return func(*args, **kwargs)
+        except Exception as e:
+            if isinstance(args[0], BrowserContext):
+                bc = args[0]
+                browser = args[1]
+            else:
+                bc = args[0].browser_context
+                browser = args[1]
+            bc.failed = e
             cef.PostTask(cef.TID_UI, exit_scraping, browser)
     return wrapped
+
+
+@handle_exception
+def exec_retrieve_transform(bc: BrowserContext, browser):
+    with open(bc.kle_json_file, 'r', encoding='utf-8') as f:
+        json = f.read()
+    browser.ExecuteJavascript(r'''(function(){
+        window.deserializeAndRenderAndApply(''' + json + r''');
+        yieldTransforms(window.retrieveTransforms());
+    })();
+    ''')
+    cef.PostDelayedTask(cef.TID_UI, 2000, wait_retrieve_transforms, bc, browser)
 
 
 @handle_exception
@@ -77,9 +82,7 @@ def exec_retrieve_rects(bc: BrowserContext, browser):
         });
         document.querySelectorAll(".keytop").forEach(e => {
             e.style.borderColor = "#ffffff";
-        });''' +
-        f"yieldRects(window.retrieveRects('{tr}'));" +
-    '''})();
+        });''' + f"yieldRects(window.retrieveRects('{tr}'));" + '''})();
     ''')
     cef.PostDelayedTask(cef.TID_UI, 100, wait_retrieve_rects, bc, browser)
 
@@ -155,35 +158,25 @@ class LoadHandler(object):
     def __init__(self, browser_context: BrowserContext):
         self.browser_context = browser_context
 
+    @handle_exception
     def OnLoadingStateChange(self, browser, is_loading, **_):
         """Called when the loading state has changed."""
-        try:
-            if not is_loading:
-                # Loading is complete
-                def yield_transforms(transforms):
-                    self.browser_context.transforms = set(transforms)
+        if is_loading:
+            return
 
-                def yield_rects(rects):
-                    self.browser_context.rects = rects
+        # Loading is complete
+        def yield_transforms(transforms):
+            self.browser_context.transforms = set(transforms)
 
-                bindings = cef.JavascriptBindings(bindToFrames=False, bindToPopups=False)
-                bindings.SetFunction("yieldTransforms", yield_transforms)
-                bindings.SetFunction("yieldRects", yield_rects)
-                browser.SetJavascriptBindings(bindings)
-                with open(self.browser_context.kle_json_file, 'r', encoding='utf-8') as f:
-                    json = f.read()
-                browser.ExecuteJavascript(r'''(function(){
-                    window.deserializeAndRenderAndApply(''' + json + r''');
-                    yieldTransforms(window.retrieveTransforms());
-                })();
-                ''')
+        def yield_rects(rects):
+            self.browser_context.rects = rects
 
-                cef.PostDelayedTask(cef.TID_UI, 2000, wait_retrieve_transforms, self.browser_context, browser)
-        except:
-            import traceback
-            print("[kle_scraper] ERROR: Failed in OnLoadingStateChange()")
-            traceback.print_exc()
-            cef.PostTask(cef.TID_UI, exit_scraping, browser)
+        bindings = cef.JavascriptBindings(bindToFrames=False, bindToPopups=False)
+        bindings.SetFunction("yieldTransforms", yield_transforms)
+        bindings.SetFunction("yieldRects", yield_rects)
+        browser.SetJavascriptBindings(bindings)
+
+        cef.PostDelayedTask(cef.TID_UI, 200, exec_retrieve_transform, self.browser_context, browser)
 
     def OnLoadError(self, browser, frame, error_code, failed_url, **_):
         """Called when the resource load for a navigation fails or is canceled."""
@@ -191,8 +184,7 @@ class LoadHandler(object):
             # We are interested only in loading main url.
             # Ignore any errors during loading of other frames.
             return
-        print("[kle_scraper] ERROR: Failed to load url: {url}".format(url=failed_url))
-        print("[kle_scraper] Error code: {code}".format(code=error_code))
+        self.browser_context.failed = Exception(f'Failed to load.\nURL: {failed_url}\nError code: {error_code}')
         # See comments in exit_scraping() why PostTask must be used
         cef.PostTask(cef.TID_UI, exit_scraping, browser)
 
@@ -209,36 +201,32 @@ class RenderHandler(object):
         rect_out.extend([0, 0, VIEWPORT_SIZE[0], VIEWPORT_SIZE[1]])
         return True
 
+    @handle_exception
     def OnPaint(self, browser, element_type, dirty_rects, paint_buffer, **_):
         """Called when an element should be painted."""
-        try:
-            if self.browser_context.capturing_screenshot and element_type == cef.PET_VIEW:
-                if len(dirty_rects) == 0:
-                    return
-                dr = dirty_rects[0]
-                if dr[0] != 0 or dr[1] != 0 or dr[2] != VIEWPORT_SIZE[0] or dr[3] != VIEWPORT_SIZE[1]:
-                    # partial paint
-                    return
-                # Buffer string is a huge string, so for performance
-                # reasons it would be better not to copy this string.
-                # I think that Python makes a copy of that string when
-                # passing it to SetUserData.
-                buffer_string = paint_buffer.GetBytes(mode="rgba",
-                                                      origin="top-left")
-                # Browser object provides GetUserData/SetUserData methods
-                # for storing custom data associated with browser.
-                browser.SetUserData("OnPaint.buffer_string", buffer_string)
-                self.browser_context.capturing_screenshot = False
-        except:
-            import traceback
-            print("[kle_scraper] ERROR: Failed in OnPaint()")
-            traceback.print_exc()
-            cef.PostTask(cef.TID_UI, exit_scraping, browser)
+        if self.browser_context.capturing_screenshot and element_type == cef.PET_VIEW:
+            if len(dirty_rects) == 0:
+                return
+            dr = dirty_rects[0]
+            if dr[0] != 0 or dr[1] != 0 or dr[2] != VIEWPORT_SIZE[0] or dr[3] != VIEWPORT_SIZE[1]:
+                # partial paint
+                return
+            # Buffer string is a huge string, so for performance
+            # reasons it would be better not to copy this string.
+            # I think that Python makes a copy of that string when
+            # passing it to SetUserData.
+            buffer_string = paint_buffer.GetBytes(mode="rgba",
+                                                  origin="top-left")
+            # Browser object provides GetUserData/SetUserData methods
+            # for storing custom data associated with browser.
+            browser.SetUserData("OnPaint.buffer_string", buffer_string)
+            self.browser_context.capturing_screenshot = False
 
 
 def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union[os.PathLike, str]) -> kle_serial.Keyboard:
     kle_json_file = pathlib.Path(kle_json_file)
     image_output_dir = pathlib.Path(image_output_dir)
+
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'web'), **kwargs)
@@ -274,6 +262,8 @@ def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union
         browser.WasResized()
         cef.MessageLoop()  # this call blocks thread.
 
+        if bc.failed is not None:
+            raise bc.failed
         return bc.kle_keyboard
     finally:
         tcp_server.shutdown()
