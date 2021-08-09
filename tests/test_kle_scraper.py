@@ -3,6 +3,7 @@ import tempfile
 import os
 from PIL import Image, ImageChops
 
+
 class TestKleScraper(unittest.TestCase):
     def compare_generated_oracle(self, test_file, generated_file, oracle_file):
         from kle_scraper import scrape
