@@ -41,7 +41,7 @@
         let rects = [];
         kls.forEach((kl, idx) => {
             const parent = kl.parentNode;
-            let ctr = 'nop';
+            let ctr = NOP;
             if (parent.style.transform) {
                 ctr = parent.style.transform + '\n' + parent.style.transformOrigin;
             }
