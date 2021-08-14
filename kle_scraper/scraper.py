@@ -3,7 +3,7 @@ import pathlib
 import typing as ty
 import tempfile
 import atexit
-from PIL import Image
+from PIL import Image, ImageChops
 from cefpython3 import cefpython as cef
 import pykle_serial as kle_serial
 
@@ -41,6 +41,7 @@ class BrowserContext:
     capturing_screenshot = False
     current_transform: str = ''
     shot_transforms: ty.Set[str] = field(default_factory=set)
+    last_image: ty.Any = None
     failed: ty.Optional[Exception] = None
 
 
@@ -125,13 +126,23 @@ def wait_screenshot(bc: BrowserContext, browser):
 
     image = Image.frombytes("RGBA", VIEWPORT_SIZE, buffer_string, "raw", "RGBA", 0, 1)
 
+    def retake():
+        bc.capturing_screenshot = True
+        browser.Invalidate(cef.PET_VIEW)
+        cef.PostDelayedTask(cef.TID_UI, 1000, wait_screenshot, bc, browser)
+
     # check bottom right pixel of rendered image
     _, _, _, rb_pixel_a = image.getpixel((VIEWPORT_SIZE[0] - 18, VIEWPORT_SIZE[1] - 18))
     if rb_pixel_a == 0:
         # Rendering is not completed. Capture again.
-        bc.capturing_screenshot = True
-        browser.Invalidate(cef.PET_VIEW)
-        cef.PostDelayedTask(cef.TID_UI, 100, wait_screenshot, bc, browser)
+        retake()
+        return
+
+    image = image.convert('RGB')
+
+    if bc.last_image is not None and not ImageChops.difference(image, bc.last_image).getbbox():
+        # should be different from last image
+        retake()
         return
 
     # tr = bc.current_transform.replace('\n', '_')
@@ -144,6 +155,7 @@ def wait_screenshot(bc: BrowserContext, browser):
     rest_trs = bc.transforms - bc.shot_transforms
     if len(rest_trs) > 0:
         bc.current_transform = next(iter(rest_trs))
+        bc.last_image = image
         exec_retrieve_rects(bc, browser)
         return
 
