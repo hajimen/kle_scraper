@@ -18,3 +18,7 @@
 ## Version 0.0.7 : 2021/8/14
 
 - Bug fix: Sometimes it failed to wait until transform:rotate has been rendered.
+
+## Version 0.0.8 : 2021/11/6
+
+- Now kle_scraper.scrape() detects and raises Exception when cef.MessageLoop() looks like in infinite loop.
