@@ -3,6 +3,7 @@ import pathlib
 import typing as ty
 import tempfile
 import atexit
+import time
 from PIL import Image, ImageChops
 from cefpython3 import cefpython as cef
 import pykle_serial as kle_serial
@@ -20,6 +21,12 @@ NOP = 'nop'  # no operation
 # Config
 VIEWPORT_SIZE = (16000, 8000)  # enough large area to accommodate most designs.
 
+# Timeout
+LAST_FUNC_NAME = ''
+LAST_FUNC_FIRST_CALLED = -1.
+TIMEOUT_SEC = 5.
+CURRENT_BC: 'BrowserContext'
+
 
 def exit_scraping(browser):
     # Important note:
@@ -27,7 +34,7 @@ def exit_scraping(browser):
     #   OnLoadError or OnPaint events. Closing browser during these
     #   events may result in unexpected behavior. Use cef.PostTask
     #   function to call exit_scraping from these events.
-    browser.CloseBrowser()
+    browser.CloseBrowser(True)
     cef.QuitMessageLoop()
 
 
@@ -47,7 +54,17 @@ class BrowserContext:
 
 def handle_exception(func: ty.Callable):
     def wrapped(*args, **kwargs):
+        global LAST_FUNC_NAME, LAST_FUNC_FIRST_CALLED
         try:
+            fn = func.__name__
+            if fn.startswith('wait_'):
+                if fn != LAST_FUNC_NAME:
+                    LAST_FUNC_NAME = func.__name__
+                    LAST_FUNC_FIRST_CALLED = time.perf_counter()
+                elif time.perf_counter() - LAST_FUNC_FIRST_CALLED > TIMEOUT_SEC:
+                    raise Exception('Timeout by infinite loop.')
+            elif fn.startswith('exec_'):
+                LAST_FUNC_NAME = ''
             return func(*args, **kwargs)
         except Exception as e:
             if isinstance(args[0], BrowserContext):
@@ -56,6 +73,8 @@ def handle_exception(func: ty.Callable):
             else:
                 bc = args[0].browser_context
                 browser = args[1]
+            if bc != CURRENT_BC:  # Autodesk Fusion 360's mysterious behavior after PC hibernated.
+                return
             bc.failed = e
             cef.PostTask(cef.TID_UI, exit_scraping, browser)
     return wrapped
@@ -236,6 +255,10 @@ class RenderHandler(object):
 
 
 def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union[os.PathLike, str]) -> kle_serial.Keyboard:
+    global LAST_FUNC_NAME, LAST_FUNC_FIRST_CALLED, CURRENT_BC
+    LAST_FUNC_NAME = ''
+    LAST_FUNC_FIRST_CALLED = -1.
+
     kle_json_file = pathlib.Path(kle_json_file)
     image_output_dir = pathlib.Path(image_output_dir)
 
@@ -266,6 +289,7 @@ def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union
                                         settings=browser_settings,
                                         url=url)
         bc = BrowserContext(kle_json_file, image_output_dir)
+        CURRENT_BC = bc
         browser.SetClientHandler(LoadHandler(bc))
         browser.SetClientHandler(RenderHandler(bc))
         browser.SendFocusEvent(True)
