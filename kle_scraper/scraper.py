@@ -9,8 +9,7 @@ from cefpython3 import cefpython as cef
 import pykle_serial as kle_serial
 
 # web
-from http.server import SimpleHTTPRequestHandler
-from socketserver import TCPServer
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import threading
 from dataclasses import dataclass, field
 
@@ -270,7 +269,7 @@ def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union
             pass
 
     try:
-        tcp_server = TCPServer(('127.0.0.1', 0), Handler)
+        tcp_server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         tcp_server_thread = threading.Thread(target=tcp_server.serve_forever, daemon=True)
         tcp_server_thread.start()
         url = f"http://localhost:{str(tcp_server.server_address[1])}/index.html"

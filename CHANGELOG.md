@@ -22,3 +22,7 @@
 ## Version 0.0.8 : 2021/11/6
 
 - Now kle_scraper.scrape() detects and raises Exception when cef.MessageLoop() looks like in infinite loop.
+
+## Version 0.0.9 : 2021/12/3
+
+- Now unit tests work under current environment. Chrome parallel connections made a trouble.
