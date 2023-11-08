@@ -26,3 +26,7 @@
 ## Version 0.0.9 : 2021/12/3
 
 - Now unit tests work under current environment. Chrome parallel connections made a trouble.
+
+## Version 0.0.10 : 2023/11/8
+
+- Now runs on Python 3.10 and 3.11 too.
