@@ -30,3 +30,7 @@
 ## Version 0.0.10 : 2023/11/8
 
 - Now runs on Python 3.10 and 3.11 too.
+
+## Version 0.0.11 : 2024/4/15
+
+- Fix deprecated warnings of setuptools.
