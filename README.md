@@ -36,7 +36,7 @@ kle_scraper depends on [pykle_serial](https://github.com/hajimen/pykle_serial).
 kle_scraper isn't published on PyPI, so you need to `git clone` the repository and 
 install it by `pip install .` first.
 
-For Python 3.11 and 3.10, it depends on [cefpython3 v66.1 unofficial](https://github.com/hajimen/cefpython/releases).
+For Python 3.12, 3.11 and 3.10, it depends on [cefpython3 v66.1 unofficial](https://github.com/hajimen/cefpython/releases).
 Download the latest whl and install it by pip.
 
 kle_scraper itself isn't published on PyPI too.

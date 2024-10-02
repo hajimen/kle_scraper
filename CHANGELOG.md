@@ -34,3 +34,7 @@
 ## Version 0.0.11 : 2024/4/15
 
 - Fix deprecated warnings of setuptools.
+
+## Version 0.0.12 : 2024/10/2
+
+- Now it runs on Python 3.12.
