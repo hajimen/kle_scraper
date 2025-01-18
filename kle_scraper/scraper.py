@@ -238,11 +238,10 @@ def browse(kle_json_file: Path, image_output_dir: Path, url: str, bc: BrowserCon
                 # Ignore any errors during loading of other frames.
                 return
             nonlocal _saved_exception
+            failed_url_py = decode_cef_string(failed_url)
+            error_text_py = decode_cef_string(error_text)
             _saved_exception = Exception(
-                f'Failed to load.\nURL: {
-                    decode_cef_string(failed_url)
-                }\nError code: {error_code}\nError text: {
-                    decode_cef_string(error_text)}')
+                f'Failed to load.\nURL: {failed_url_py}\nError code: {error_code}\nError text: {error_text_py}')
             header.cef_post_task(header.TID_UI, exit_scraping())
         
         return load_handler
