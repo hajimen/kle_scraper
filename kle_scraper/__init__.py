@@ -1,8 +1,12 @@
-__version_info__ = (0, 0, 12)
-__version__ = '.'.join(map(str, __version_info__))
+__version_info__ = (0, 1, 11)
+__version__ = '.'.join(map(str, __version_info__)) + 'dev0'
 
 import typing as ty
 import os
+import warnings
+
+# `tcp_server.shutdown()` in `kle_scraper.scraper ` sometimes be overlooked in unittest. I don't know why.
+warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
 
 
 def scrape(kle_json_file: ty.Union[os.PathLike, str], image_output_dir: ty.Union[os.PathLike, str]):

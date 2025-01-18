@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=60"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kle-scraper"
+dynamic = ["version"]
+description = "kle-scraper is a Python library for scraping the key top images of keyboard-layout-editor.com (KLE)."
+requires-python = ">=3.11"
+authors = [{ name = "NAKAZATO Hajime", email = "hajime@kaoriha.org" }]
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["keyboard-layout-editor.com", "KLE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "cef-capi-py",
+  "Pillow >= 8.2.0",
+  "pykle-serial >= 0.0.2",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/hajimen/kle_scraper/issues"
+Changelog = "https://github.com/hajimen/kle_scraper/blob/master/CHANGELOG.md"
+Repository = "https://github.com/hajimen/kle_scraper.git"
+
+[tool.setuptools.dynamic]
+version = {attr = "kle_scraper.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["kle_scraper"]
+
+[tool.setuptools.package-data]
+"kle_scraper" = ["web/**"]

@@ -140,3 +140,4 @@ cython_debug/
 
 .vscode
 venv*/
+test_failed_img
