@@ -1,8 +1,6 @@
 # Changelog
 
-## [0.1.1] - 2025-01-XX
-
-Waiting for cef-capi-py delivery to PyPI. It requires file limit request approval: [https://github.com/pypi/support/issues/5491]
+## [0.1.1] - 2025-01-29
 
 - Changed from cefpython3 to cef-capi-py. It liberates kle-scraper from Python version dependency of C extension.
 - Dropped Python <= 3.10 support.

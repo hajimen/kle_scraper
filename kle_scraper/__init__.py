@@ -1,5 +1,5 @@
 __version_info__ = (0, 1, 1)
-__version__ = '.'.join(map(str, __version_info__)) + 'dev0'
+__version__ = '.'.join(map(str, __version_info__))
 
 import typing as ty
 import os

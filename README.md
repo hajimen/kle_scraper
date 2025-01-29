@@ -28,13 +28,19 @@ Available platforms:
 
 ## Installation
 
+Grab your platform's wheel from [cef-capi-py release](https://github.com/hajimen/cef-capi-py/releases/tag/131.3.5) and `pip install` it.
+I haven't uploaded the wheels to PyPI yet because now PyPI project is not processing support issues:
+[File Limit Request: cef-capi-py - 180 MB](https://github.com/pypi/support/issues/5491).
+
+Then:
+
 ```bash
 pip install kle-scraper
 ```
 
 ## Usage
 
-```
+```python
 import tempfile
 from kle_scraper import scrape
 
@@ -47,7 +53,7 @@ You can find `0.png`, `1.png` and more in `image_output_dir`. The filename numbe
 
 Otherwise from command line,
 
-```
+```bash
 python -m kle_scraper {kle_json_filename} {image_output_dir}
 ```
 
@@ -56,3 +62,7 @@ python -m kle_scraper {kle_json_filename} {image_output_dir}
 Scraped images are magnified to 4x. On KLE screen, 1u key top has 42x42 px. 
 Key layout pitch is 54x54 px. On scraped images, 1u key top (and image size) is 
 168x168 px and 1u pitch is 216x216 px.
+
+## License
+
+MIT license.
